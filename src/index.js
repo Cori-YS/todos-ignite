@@ -21,9 +21,31 @@ function checkExistsUserAccount(request, response, next) {
   return next();
 }
 
+// Check if user can create a new todos
+function checksCreateTodosUserAvailability(request, response, next) {
+  const { user } = request;
+  if (user.todos.length >= 9 && user.plan === "free") {
+    return response.status(401).json("The free plan can only create ten todos");
+  }
+  return next();
+}
+
+// Check if todos exists
+function checksTodoExists(request, response, next) {
+  const { id } = request.params;
+  const { user } = request;
+
+  const todo = user.todos.find((todo) => todo.id === id);
+  if (!todo) {
+    return response.status(404).json("Todo not found");
+  }
+  request.todo = todo;
+  return next();
+}
+
 // Create user
 app.post("/user", (request, response) => {
-  const { name, username } = request.body;
+  const { name, username, plan } = request.body;
 
   const userAlreadyExists = users.some((user) => user.username === username);
 
@@ -37,6 +59,7 @@ app.post("/user", (request, response) => {
     id: uuidv4(),
     name,
     username,
+    plan,
     todos: [],
   });
 
@@ -51,38 +74,47 @@ app.get("/todos", checkExistsUserAccount, (request, response) => {
 });
 
 // Create Todos
-app.post("/todos", checkExistsUserAccount, (request, response) => {
-  const { title, deadline } = request.body;
+app.post(
+  "/todos",
+  checkExistsUserAccount,
+  checksCreateTodosUserAvailability,
+  (request, response) => {
+    const { title, deadline } = request.body;
 
-  const { user } = request;
+    const { user } = request;
 
-  user.todos.push({
-    id: uuidv4(),
-    title: title,
-    done: false,
-    deadline: new Date(deadline),
-    create_at: new Date(),
-  });
-
-  return response.status(201).send();
-});
-
-app.put("/todos/:id", checkExistsUserAccount, (request, response) => {
-  const { title, deadline } = request.body;
-  const { user } = request;
-  const { id } = request.params;
-
-  const index = user.todos.findIndex((todos) => todos.id === id);
-
-  if (!index) {
-    return response.status(404).json({ erro: "Bad Request" });
+    user.todos.push({
+      id: uuidv4(),
+      title: title,
+      done: false,
+      deadline: new Date(deadline),
+      create_at: new Date(),
+    });
+    return response.status(201).send();
   }
+);
 
-  user.todos[index].title = title;
-  user.todos[index].deadline = new Date(deadline);
+app.put(
+  "/todos/:id",
+  checkExistsUserAccount,
+  checksTodoExists,
+  (request, response) => {
+    const { title, deadline } = request.body;
+    const { user } = request;
+    const { id } = request.params;
 
-  return response.status(200).send();
-});
+    const index = user.todos.findIndex((todos) => todos.id === id);
+
+    if (!index && index != 0) {
+      return response.status(404).json({ erro: "Bad Request" });
+    }
+
+    user.todos[index].title = title;
+    user.todos[index].deadline = new Date(deadline);
+
+    return response.status(200).send();
+  }
+);
 
 app.patch("/todos/:id/done", checkExistsUserAccount, (request, response) => {
   const { user } = request;
@@ -115,6 +147,7 @@ app.delete("/todos/:id", checkExistsUserAccount, (request, response) => {
 });
 
 app.listen(3030);
+console.log("Server is running!");
 
 /**
  * Notes: Date format(year-month-day)
