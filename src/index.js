@@ -34,12 +34,11 @@ function checksCreateTodosUserAvailability(request, response, next) {
 function checksTodoExists(request, response, next) {
   const { id } = request.params;
   const { user } = request;
-
-  const todo = user.todos.find((todo) => todo.id === id);
-  if (!todo) {
-    return response.status(404).json("Todo not found");
+  const index = user.todos.findIndex((todos) => todos.id === id);
+  if (!index && index != 0) {
+    return response.status(400).json("Todo not found");
   }
-  request.todo = todo;
+  request.todo_index = index;
   return next();
 }
 
@@ -101,13 +100,8 @@ app.put(
   (request, response) => {
     const { title, deadline } = request.body;
     const { user } = request;
-    const { id } = request.params;
 
-    const index = user.todos.findIndex((todos) => todos.id === id);
-
-    if (!index && index != 0) {
-      return response.status(404).json({ erro: "Bad Request" });
-    }
+    const index = request.todo_index;
 
     user.todos[index].title = title;
     user.todos[index].deadline = new Date(deadline);
@@ -116,35 +110,34 @@ app.put(
   }
 );
 
-app.patch("/todos/:id/done", checkExistsUserAccount, (request, response) => {
-  const { user } = request;
-  const { id } = request.params;
+app.patch(
+  "/todos/:id/done",
+  checkExistsUserAccount,
+  checksTodoExists,
+  (request, response) => {
+    const { user } = request;
+    const index = request.todo_index;
 
-  const index = user.todos.findIndex((todos) => todos.id === id);
+    user.todos[index].done = true;
 
-  if (!index) {
-    return response.status(404).json({ erro: "Bad Request" });
+    return response.status(200).send();
   }
+);
 
-  user.todos[index].done = true;
+app.delete(
+  "/todos/:id",
+  checkExistsUserAccount,
+  checksTodoExists,
+  (request, response) => {
+    const { user } = request;
 
-  return response.status(200).send();
-});
+    const index = request.todo_index;
 
-app.delete("/todos/:id", checkExistsUserAccount, (request, response) => {
-  const { user } = request;
-  const { id } = request.params;
+    user.todos.splice(index, 1);
 
-  const index = user.todos.findIndex((todos) => todos.id === id);
-
-  if (!index) {
-    return response.status(404).json({ erro: "Bad Request" });
+    return response.status(200).send();
   }
-
-  user.todos.splice(index, 1);
-
-  return response.status(200).send();
-});
+);
 
 app.listen(3030);
 console.log("Server is running!");
